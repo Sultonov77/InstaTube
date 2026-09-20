@@ -39,6 +39,10 @@ YOUTUBE_COOKIES = os.getenv("YOUTUBE_COOKIES", "")
 # bloklagan holatlar uchun.
 PROXY = _clean(os.getenv("PROXY", ""))
 
+# Diagnostika: shu havola bilan ishga tushganda qaysi YouTube mijozi ishlayotgani
+# loglarga yoziladi. Bo'sh bo'lsa — tekshiruv o'tkazilmaydi.
+SELFTEST_YOUTUBE = _clean(os.getenv("SELFTEST_YOUTUBE", ""))
+
 # Yuklangan fayllar vaqtinchalik saqlanadigan joy.
 WORK_DIR = _clean(os.getenv("WORK_DIR", "/tmp/instatube"))
 

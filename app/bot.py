@@ -340,6 +340,12 @@ async def main() -> None:
     else:
         log.error("ffmpeg topilmadi — doira video yasash ishlamaydi!")
 
+    # Diagnostika: shu serverning IP'sidan qaysi YouTube mijozi ishlayotganini
+    # loglarga yozadi. SELFTEST_YOUTUBE=<video havolasi> bo'lganda ishlaydi.
+    if selftest_url := config.SELFTEST_YOUTUBE:
+        log.info("YouTube selftest boshlandi…")
+        log.info("YouTube selftest: %s", await downloader.selftest(selftest_url))
+
     sweeper = asyncio.create_task(_sweep_pending())
     try:
         await bot.delete_webhook(drop_pending_updates=True)

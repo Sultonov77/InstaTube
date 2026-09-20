@@ -190,6 +190,37 @@ def _attempts(source: str) -> list[list[str] | None]:
     return [list(clients) for clients in _YT_CLIENT_SETS]
 
 
+def _probe_sync(url: str, source: str, clients: list[str] | None) -> tuple[int, int]:
+    """Yuklamasdan formatlarni tekshiradi -> (formatlar soni, maksimal balandlik)."""
+    workdir = Path(tempfile.mkdtemp(prefix="probe-", dir=config.WORK_DIR))
+    try:
+        opts = _ydl_options(workdir, source, clients) | {"skip_download": True}
+        opts.pop("postprocessors", None)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        videos = [
+            f for f in (info.get("formats") or []) if f.get("vcodec") not in (None, "none")
+        ]
+        return len(videos), max((f.get("height") or 0) for f in videos) if videos else 0
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+async def selftest(url: str) -> str:
+    """Server IP'sidan qaysi YouTube mijozi ishlayotganini aniqlaydi (loglar uchun)."""
+    Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
+    lines = []
+    for clients in _attempts("YouTube"):
+        label = ",".join(clients) if clients else "default"
+        try:
+            count, height = await asyncio.to_thread(_probe_sync, url, "YouTube", clients)
+        except Exception as err:  # noqa: BLE001
+            lines.append(f"{label}=XATO({str(err)[:60]})")
+        else:
+            lines.append(f"{label}=OK({count} format, {height}p)")
+    return " | ".join(lines)
+
+
 async def download(url: str, source: str = "") -> Downloaded:
     Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
     last_error = ""
