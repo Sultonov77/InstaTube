@@ -184,10 +184,14 @@ def _attempts(source: str) -> list[list[str] | None]:
     """Qaysi player mijozlari bilan urinib ko'rish kerakligini qaytaradi."""
     if source != "YouTube":
         return [None]
-    if config.YOUTUBE_COOKIES.strip():
-        # Cookies bor — odatdagi mijoz ishlaydi, lekin zaxira variantlar ham qolsin.
-        return [None, *(list(clients) for clients in _YT_CLIENT_SETS)]
-    return [list(clients) for clients in _YT_CLIENT_SETS]
+
+    attempts: list[list[str] | None] = []
+    if config.POT_ENABLED or config.YOUTUBE_COOKIES.strip():
+        # PO Token yoki cookies bo'lsa yt-dlp'ning odatdagi (web) mijozi ishlaydi
+        # va eng yaxshi sifatni beradi.
+        attempts.append(None)
+    attempts.extend(list(clients) for clients in _YT_CLIENT_SETS)
+    return attempts
 
 
 def _probe_sync(url: str, source: str, clients: list[str] | None) -> tuple[int, int]:
