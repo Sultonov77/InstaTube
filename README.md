@@ -22,6 +22,18 @@ doira videosiga (video note) aylantiradigan Telegram bot.
 | `NOTE_MAX_SECONDS` | yo'q | Doira video uzunligi chegarasi, sukut bo'yicha 60 |
 | `NOTE_SIZE` | yo'q | Doira video o'lchami (piksel), sukut bo'yicha 480 |
 | `INSTAGRAM_COOKIES` | yo'q | Yopiq postlar uchun Netscape formatdagi cookies |
+| `YOUTUBE_COOKIES` | yo'q | YouTube bloklab qo'ysa — Netscape formatdagi cookies |
+| `PROXY` | yo'q | `http://user:pass@host:port` — YouTube IP blokini aylanib o'tish uchun |
+
+### YouTube "bot emasligingizni tasdiqlang" muammosi
+
+YouTube server (datacenter) IP'laridan kelgan so'rovlarni bloklaydi. Bot buni
+avtomatik aylanib o'tadi: bir nechta ichki YouTube player mijozini navbat bilan
+sinaydi (`tv_embedded` → `ios_music` → `android_music` → `android_vr` → `android`).
+Birinchi uchtasi 1080p+ sifat beradi, oxirgi ikkitasi zaxira (360p).
+
+Agar YouTube kelajakda bularni ham bloklasa, `YOUTUBE_COOKIES` yoki `PROXY`
+o'zgaruvchisini qo'shish muammoni hal qiladi.
 
 > ⚠️ Obuna tekshiruvi ishlashi uchun bot **kanalga administrator** qilib qo'shilgan bo'lishi kerak.
 > Aks holda bot tekshiruvni o'tkazib yuboradi (hamma foydalana oladi).

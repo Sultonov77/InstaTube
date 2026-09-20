@@ -87,20 +87,20 @@ async def channel_title(bot: Bot) -> str:
 
 async def subscribe_keyboard(bot: Bot) -> InlineKeyboardMarkup:
     rows = []
-    url = await channel_url(bot)
-    if url:
-        title = await channel_title(bot)
-        rows.append([InlineKeyboardButton(text=f"📢 {title}", url=url)])
+    if url := await channel_url(bot):
+        rows.append([InlineKeyboardButton(text="📢 Kanalga o'tish", url=url)])
     rows.append([InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 async def subscribe_text(bot: Bot) -> str:
     title = await channel_title(bot)
-    url = await channel_url(bot)
-    link = f'<a href="{url}">{title}</a>' if url else f"<b>{title}</b>"
     return (
-        "🔒 <b>Botdan foydalanish uchun avval kanalimizga obuna bo'ling.</b>\n\n"
-        f"👉 {link}\n\n"
-        "Obuna bo'lgach <b>«✅ Obuna bo'ldim»</b> tugmasini bosing."
+        "🔐 <b>Deyarli tayyor!</b>\n\n"
+        "Botdan foydalanish uchun kanalimizga obuna bo'ling — "
+        "bu bir martalik va bepul.\n\n"
+        f"📢 <b>{title}</b>\n\n"
+        "━━━━━━━━━━━━━━━\n"
+        "1️⃣ «Kanalga o'tish» → obuna bo'ling\n"
+        "2️⃣ «Obuna bo'ldim» tugmasini bosing"
     )

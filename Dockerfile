@@ -16,4 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# YouTube himoyasi tez-tez o'zgaradi, shuning uchun har build'da yt-dlp'ning eng
+# so'nggi (nightly) versiyasi o'rnatiladi — yt-dlp buni YouTube uchun tavsiya qiladi.
+RUN pip install --no-cache-dir --upgrade --pre "yt-dlp[default]"
+
 CMD ["python", "main.py"]

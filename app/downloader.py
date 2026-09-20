@@ -24,6 +24,31 @@ INSTAGRAM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# YouTube server IP'laridan kelgan so'rovlarni "bot" deb hisoblab, oddiy web
+# mijozni bloklaydi. Bu mijozlar PO Token talab qilmaydi, shuning uchun ularni
+# navbat bilan sinab ko'ramiz.
+# Tartib muhim: birinchi uchtasi 1080p+ beradi, android_* zaxira sifatida
+# 360p bo'lsa ham ishlaydi. (2026-09-20 da haqiqiy videolarda tekshirilgan.)
+_YT_CLIENT_SETS: tuple[list[str], ...] = (
+    ["tv_embedded"],
+    ["ios_music"],
+    ["android_music"],
+    ["android_vr"],
+    ["android"],
+)
+
+# Shu belgilar uchrasa — mijoz bloklangan/format bermagan, keyingisini sinaymiz.
+_BOT_WALL_MARKERS = (
+    "not a bot",
+    "sign in to confirm",
+    "please sign in",
+    "po token",
+    "page needs to be reloaded",
+    "failed to extract any player response",
+    "unable to extract",
+    "requested format is not available",
+)
+
 
 class DownloadError(RuntimeError):
     """Foydalanuvchiga ko'rsatiladigan xato."""
@@ -52,15 +77,16 @@ def find_link(text: str) -> tuple[str, str] | None:
     return None
 
 
-def _cookie_file(workdir: Path) -> str | None:
-    if not config.INSTAGRAM_COOKIES.strip():
+def _cookie_file(workdir: Path, source: str) -> str | None:
+    raw = config.YOUTUBE_COOKIES if source == "YouTube" else config.INSTAGRAM_COOKIES
+    if not raw.strip():
         return None
     path = workdir / "cookies.txt"
-    path.write_text(config.INSTAGRAM_COOKIES.replace("\n", "\n"), encoding="utf-8")
+    path.write_text(raw.replace("\\n", "\n"), encoding="utf-8")
     return str(path)
 
 
-def _ydl_options(workdir: Path) -> dict:
+def _ydl_options(workdir: Path, source: str, clients: list[str] | None) -> dict:
     opts = {
         "outtmpl": str(workdir / "%(id)s.%(ext)s"),
         "format": (
@@ -80,15 +106,19 @@ def _ydl_options(workdir: Path) -> dict:
             {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
         ],
     }
-    if cookies := _cookie_file(workdir):
+    if clients:
+        opts["extractor_args"] = {"youtube": {"player_client": clients}}
+    if config.PROXY:
+        opts["proxy"] = config.PROXY
+    if cookies := _cookie_file(workdir, source):
         opts["cookiefile"] = cookies
     return opts
 
 
-def _download_sync(url: str) -> Downloaded:
+def _download_sync(url: str, source: str, clients: list[str] | None) -> Downloaded:
     workdir = Path(tempfile.mkdtemp(prefix=f"dl-{uuid.uuid4().hex[:8]}-", dir=config.WORK_DIR))
     try:
-        with yt_dlp.YoutubeDL(_ydl_options(workdir)) as ydl:
+        with yt_dlp.YoutubeDL(_ydl_options(workdir, source, clients)) as ydl:
             info = ydl.extract_info(url, download=True)
         if info.get("entries"):
             info = info["entries"][0]
@@ -114,35 +144,77 @@ def _download_sync(url: str) -> Downloaded:
             duration=int(info.get("duration") or 0),
             width=int(info.get("width") or 0),
             height=int(info.get("height") or 0),
-            source=info.get("extractor_key") or "",
+            source=info.get("extractor_key") or source,
             workdir=workdir,
         )
-    except DownloadError:
+    except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
         raise
-    except yt_dlp.utils.DownloadError as err:
-        shutil.rmtree(workdir, ignore_errors=True)
-        log.warning("yt-dlp xatosi: %s", err)
-        raise DownloadError(_humanize(str(err))) from err
-    except Exception as err:  # noqa: BLE001
-        shutil.rmtree(workdir, ignore_errors=True)
-        log.exception("Yuklashda kutilmagan xato")
-        raise DownloadError("Videoni yuklab bo'lmadi. Havolani tekshirib qayta urining.") from err
 
 
-def _humanize(raw: str) -> str:
+def _is_bot_wall(raw: str) -> bool:
     low = raw.lower()
-    if "private" in low or "login" in low or "cookies" in low:
+    return any(marker in low for marker in _BOT_WALL_MARKERS)
+
+
+def _humanize(raw: str, source: str) -> str:
+    low = raw.lower()
+    if _is_bot_wall(low):
+        if source == "YouTube":
+            return (
+                "YouTube hozir bu serverdan yuklashga ruxsat bermayapti "
+                "(«bot emasligingizni tasdiqlang» to'sig'i). Biroz kutib qayta "
+                "urinib ko'ring yoki boshqa video tashlang."
+            )
+        return "Manba hozir yuklashga ruxsat bermayapti. Birozdan so'ng urinib ko'ring."
+    if "private" in low or "login required" in low or "log in" in low:
         return "Bu post yopiq (private) yoki login talab qiladi — uni yuklab bo'lmaydi."
-    if "unavailable" in low or "not exist" in low or "404" in low:
+    if "unavailable" in low or "not exist" in low or "404" in low or "removed" in low:
         return "Video topilmadi yoki o'chirilgan."
     if "age" in low and "restrict" in low:
         return "Video yosh chekloviga ega, yuklab bo'lmaydi."
     if "copyright" in low or "blocked" in low:
         return "Video mualliflik huquqi sababli bloklangan."
-    return "Videoni yuklab bo'lmadi. Havolani tekshirib qayta urining."
+    if "live" in low and "not started" in low:
+        return "Bu jonli efir hali boshlanmagan."
+    return "Videoni yuklab bo'lmadi. Havolani tekshirib qayta urinib ko'ring."
 
 
-async def download(url: str) -> Downloaded:
+def _attempts(source: str) -> list[list[str] | None]:
+    """Qaysi player mijozlari bilan urinib ko'rish kerakligini qaytaradi."""
+    if source != "YouTube":
+        return [None]
+    if config.YOUTUBE_COOKIES.strip():
+        # Cookies bor — odatdagi mijoz ishlaydi, lekin zaxira variantlar ham qolsin.
+        return [None, *(list(clients) for clients in _YT_CLIENT_SETS)]
+    return [list(clients) for clients in _YT_CLIENT_SETS]
+
+
+async def download(url: str, source: str = "") -> Downloaded:
     Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
-    return await asyncio.to_thread(_download_sync, url)
+    last_error = ""
+
+    for clients in _attempts(source):
+        try:
+            item = await asyncio.to_thread(_download_sync, url, source, clients)
+        except DownloadError:
+            raise
+        except yt_dlp.utils.DownloadError as err:
+            last_error = str(err)
+            if _is_bot_wall(last_error):
+                # Bu mijoz bloklandi — keyingisini sinaymiz.
+                log.warning("Mijoz ishlamadi (%s): %s", clients or "default", last_error[:200])
+                continue
+            log.warning("yt-dlp xatosi: %s", last_error[:300])
+            raise DownloadError(_humanize(last_error, source)) from err
+        except Exception as err:  # noqa: BLE001
+            log.exception("Yuklashda kutilmagan xato")
+            raise DownloadError(
+                "Videoni yuklab bo'lmadi. Havolani tekshirib qayta urinib ko'ring."
+            ) from err
+        else:
+            if clients:
+                log.info("Yuklandi (%s mijozi bilan): %s", ",".join(clients), item.title[:60])
+            return item
+
+    raise DownloadError(_humanize(last_error, source))

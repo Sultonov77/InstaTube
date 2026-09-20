@@ -5,6 +5,7 @@ import logging
 import shutil
 import time
 import uuid
+from html import escape
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F, Router
@@ -32,24 +33,69 @@ router = Router()
 # Telegram bot getFile orqali 20 MB gacha fayl ola oladi.
 TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024
 
-WELCOME = (
-    "👋 <b>InstaTube</b> botiga xush kelibsiz!\n\n"
-    "Men nima qila olaman:\n"
-    "🔗 <b>YouTube</b> yoki <b>Instagram</b> havolasini yuboring — videoni yuklab beraman.\n"
-    "⬜️➡️🔵 <b>To'rtburchak video</b> yuboring — uni <b>doira video</b> qilib qaytaraman.\n\n"
-    "Shunchaki havola yoki video tashlang — qolganini o'zim qilaman."
+def welcome(name: str) -> str:
+    return (
+        f"✨ <b>InstaTube</b>\n"
+        f"<i>Video yuklovchi va doira video ustasi</i>\n\n"
+        f"Salom, <b>{name}</b>! Mana nima qila olaman:\n\n"
+        f"📥  <b>Video yuklash</b>\n"
+        f"      <i>YouTube yoki Instagram havolasini tashlang</i>\n\n"
+        f"🔵  <b>Doira video</b>\n"
+        f"      <i>Oddiy videoni tashlang — video note qilib qaytaraman</i>\n\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"Boshlash uchun havola yoki video yuboring 👇"
+    )
+
+
+HOW_DOWNLOAD = (
+    "📥 <b>Video yuklash</b>\n\n"
+    "Menga quyidagilardan birining havolasini tashlang:\n\n"
+    "▸ <b>YouTube</b> — oddiy video, Shorts, jonli efir yozuvi\n"
+    "▸ <b>Instagram</b> — post, Reels, IGTV\n\n"
+    "<code>https://youtu.be/...</code>\n"
+    "<code>https://instagram.com/reel/...</code>\n\n"
+    f"<i>Cheklov: {config.MAX_FILE_MB} MB gacha. Yopiq (private) postlar yuklanmaydi.</i>"
+)
+
+HOW_NOTE = (
+    "🔵 <b>Doira video</b>\n\n"
+    "Menga <b>video</b> yoki <b>GIF</b> yuboring — markazidan kvadrat kesib, "
+    "Telegram'ning doira videosi (video note) qilib qaytaraman.\n\n"
+    "Yuklab olingan videoning tagidagi <b>«🔵 Doira video qilish»</b> "
+    "tugmasi ham xuddi shuni qiladi.\n\n"
+    f"<i>Cheklov: {config.NOTE_MAX_SECONDS} soniyagacha (uzunrog'i qirqiladi), "
+    "kiruvchi fayl 20 MB gacha.</i>"
 )
 
 HELP = (
-    "<b>Qo'llanma</b>\n\n"
-    "1️⃣ <b>Video yuklash:</b> YouTube (shu jumladan Shorts) yoki Instagram "
-    "(post, reel, IGTV) havolasini yuboring.\n"
-    "2️⃣ <b>Doira video:</b> istalgan videoni (yoki GIF'ni) yuboring — markazidan "
-    "kvadrat kesib, doira video qilib qaytaraman.\n\n"
-    f"⚠️ Fayl hajmi {config.MAX_FILE_MB} MB dan oshmasligi kerak.\n"
-    f"⚠️ Doira video {config.NOTE_MAX_SECONDS} soniyadan uzun bo'la olmaydi "
-    "(uzunroq video qirqiladi).\n"
-    "⚠️ Yopiq (private) Instagram postlarini yuklab bo'lmaydi."
+    "ℹ️ <b>Yordam</b>\n\n"
+    "📥 <b>Yuklash</b> — YouTube yoki Instagram havolasini yuboring\n"
+    "🔵 <b>Doira video</b> — video yoki GIF yuboring\n\n"
+    "<b>Komandalar</b>\n"
+    "/start — boshlash\n"
+    "/help — shu yordam\n\n"
+    "<b>Cheklovlar</b>\n"
+    f"▸ Yuboriladigan fayl — {config.MAX_FILE_MB} MB gacha\n"
+    "▸ Qabul qilinadigan fayl — 20 MB gacha (Telegram qoidasi)\n"
+    f"▸ Doira video — {config.NOTE_MAX_SECONDS} soniyagacha\n"
+    "▸ Yopiq (private) postlar yuklanmaydi"
+)
+
+
+def main_keyboard(channel_url: str = "") -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text="📥 Yuklash", callback_data="how:download"),
+            InlineKeyboardButton(text="🔵 Doira video", callback_data="how:note"),
+        ]
+    ]
+    if channel_url:
+        rows.append([InlineKeyboardButton(text="📢 Kanalimiz", url=channel_url)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+BACK_KEYBOARD = InlineKeyboardMarkup(
+    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Orqaga", callback_data="how:back")]]
 )
 
 # make_note tugmasi uchun vaqtinchalik fayl ombori: token -> (yo'l, vaqt).
@@ -89,14 +135,33 @@ async def _guard(bot: Bot, user_id: int, answer) -> bool:
 async def cmd_start(message: Message, bot: Bot) -> None:
     if not await _guard(bot, message.from_user.id, message.answer):
         return
-    await message.answer(WELCOME)
+    await message.answer(
+        welcome(message.from_user.first_name or "do'stim"),
+        reply_markup=main_keyboard(await subscription.channel_url(bot)),
+    )
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, bot: Bot) -> None:
     if not await _guard(bot, message.from_user.id, message.answer):
         return
-    await message.answer(HELP)
+    await message.answer(HELP, reply_markup=main_keyboard(await subscription.channel_url(bot)))
+
+
+@router.callback_query(F.data.startswith("how:"))
+async def cb_how(callback: CallbackQuery, bot: Bot) -> None:
+    section = callback.data.split(":", 1)[1]
+    if section == "download":
+        text, markup = HOW_DOWNLOAD, BACK_KEYBOARD
+    elif section == "note":
+        text, markup = HOW_NOTE, BACK_KEYBOARD
+    else:
+        text = welcome(callback.from_user.first_name or "do'stim")
+        markup = main_keyboard(await subscription.channel_url(bot))
+
+    with contextlib.suppress(Exception):
+        await callback.message.edit_text(text, reply_markup=markup)
+    await callback.answer()
 
 
 @router.callback_query(F.data == "check_sub")
@@ -105,10 +170,13 @@ async def cb_check_sub(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer("Rahmat! Endi botdan foydalanishingiz mumkin ✅", show_alert=True)
         with contextlib.suppress(Exception):
             await callback.message.delete()
-        await callback.message.answer(WELCOME)
+        await callback.message.answer(
+            welcome(callback.from_user.first_name or "do'stim"),
+            reply_markup=main_keyboard(await subscription.channel_url(bot)),
+        )
     else:
         await callback.answer(
-            "Hali obuna bo'lmagansiz. Kanalga qo'shiling va qayta tekshiring.",
+            "Hali obuna bo'lmagansiz 🙂 Kanalga qo'shiling va qayta tekshiring.",
             show_alert=True,
         )
 
@@ -123,17 +191,17 @@ async def handle_link(message: Message, bot: Bot) -> None:
         return
     url, source = found
 
-    status = await message.answer(f"⏳ {source}'dan yuklanmoqda...")
+    status = await message.answer(f"⏬ <b>{source}</b>\n<i>Yuklanmoqda…</i>")
     await bot.send_chat_action(message.chat.id, ChatAction.UPLOAD_VIDEO)
 
     try:
-        item = await downloader.download(url)
+        item = await downloader.download(url, source)
     except downloader.DownloadError as err:
-        await status.edit_text(f"❌ {err}")
+        await status.edit_text(f"❌ <b>Yuklab bo'lmadi</b>\n\n{err}")
         return
 
     try:
-        await status.edit_text("📤 Yuborilmoqda...")
+        await status.edit_text("📤 <b>Telegram'ga yuklanmoqda…</b>")
         me = await bot.me()
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[[
@@ -145,7 +213,11 @@ async def handle_link(message: Message, bot: Bot) -> None:
         )
         await message.answer_video(
             FSInputFile(item.path),
-            caption=f"🎬 <b>{item.title}</b>\n\n📥 @{me.username}",
+            caption=(
+                f"🎬 <b>{escape(item.title)}</b>\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"📥 @{me.username}"
+            ),
             duration=item.duration or None,
             width=item.width or None,
             height=item.height or None,
@@ -174,7 +246,7 @@ async def cb_make_note(callback: CallbackQuery, bot: Bot) -> None:
         )
         return
 
-    await callback.answer("Doira video tayyorlanmoqda...")
+    await callback.answer("🔵 Doira video tayyorlanmoqda…")
     src = entry[0]
     dst = src.parent / f"note-{token}.mp4"
     await bot.send_chat_action(callback.message.chat.id, ChatAction.UPLOAD_VIDEO_NOTE)
@@ -198,17 +270,20 @@ async def handle_video(message: Message, bot: Bot) -> None:
     media = message.video or message.animation or message.document
     mime = (getattr(media, "mime_type", "") or "").lower()
     if message.document and not mime.startswith("video/"):
-        await message.answer("❌ Bu video fayl emas. Menga video yoki havola yuboring.")
+        await message.answer(
+            "❌ <b>Bu video fayl emas</b>\n\nMenga video, GIF yoki havola yuboring."
+        )
         return
 
     if (media.file_size or 0) > TELEGRAM_DOWNLOAD_LIMIT:
         await message.answer(
-            "❌ Telegram botlarga 20 MB dan katta faylni yuklab olishga ruxsat bermaydi. "
+            "❌ <b>Fayl juda katta</b>\n\n"
+            "Telegram botlarga 20 MB dan katta faylni yuklab olishga ruxsat bermaydi. "
             "Kichikroq video yuboring."
         )
         return
 
-    status = await message.answer("⏳ Doira video tayyorlanmoqda...")
+    status = await message.answer("🔵 <b>Doira video</b>\n<i>Tayyorlanmoqda…</i>")
     await bot.send_chat_action(message.chat.id, ChatAction.UPLOAD_VIDEO_NOTE)
 
     workdir = Path(config.WORK_DIR) / f"note-{uuid.uuid4().hex[:8]}"
@@ -237,10 +312,10 @@ async def handle_other_text(message: Message, bot: Bot) -> None:
     if not await _guard(bot, message.from_user.id, message.answer):
         return
     await message.answer(
-        "🤔 Bu havolani tanimadim.\n\n"
-        "YouTube yoki Instagram havolasini yuboring, yoki doira videoga "
-        "aylantirish uchun video tashlang.\n"
-        "Batafsil: /help"
+        "🤔 <b>Bu havolani tanimadim</b>\n\n"
+        "📥 YouTube yoki Instagram havolasini yuboring\n"
+        "🔵 Yoki doira videoga aylantirish uchun video tashlang",
+        reply_markup=main_keyboard(await subscription.channel_url(bot)),
     )
 
 

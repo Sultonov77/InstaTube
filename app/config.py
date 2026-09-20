@@ -31,6 +31,14 @@ NOTE_SIZE = int(os.getenv("NOTE_SIZE", "480"))
 # Instagram yopiq postlari uchun ixtiyoriy cookies (Netscape formatdagi matn).
 INSTAGRAM_COOKIES = os.getenv("INSTAGRAM_COOKIES", "")
 
+# YouTube "bot emasligingizni tasdiqlang" to'sig'ini kafolatli aylanib o'tish uchun
+# ixtiyoriy cookies (Netscape formatdagi matn).
+YOUTUBE_COOKIES = os.getenv("YOUTUBE_COOKIES", "")
+
+# Ixtiyoriy proxy (masalan "http://user:pass@host:port") — YouTube server IP'larini
+# bloklagan holatlar uchun.
+PROXY = _clean(os.getenv("PROXY", ""))
+
 # Yuklangan fayllar vaqtinchalik saqlanadigan joy.
 WORK_DIR = _clean(os.getenv("WORK_DIR", "/tmp/instatube"))
 
