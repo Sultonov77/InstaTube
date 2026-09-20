@@ -41,10 +41,12 @@ python main.py
 ## Railway'ga joylash
 
 1. Railway'da yangi project → **Deploy from GitHub repo** → shu repo.
-2. **Variables** bo'limida `BOT_TOKEN` (va kerak bo'lsa `CHANNEL_ID`) ni qo'shing.
-3. Deploy tugagach loglarda `Bot ishga tushdi: @...` yozuvi chiqadi.
+2. Service → **Settings → Build** da `Dockerfile Path` = `Dockerfile` qilib qo'ying
+   (shunda ffmpeg o'rnatilgan image ishlatiladi).
+3. **Variables** bo'limida `BOT_TOKEN` va `CHANNEL_ID` ni qo'shing.
+4. Deploy tugagach loglarda `Bot ishga tushdi: @...` yozuvi chiqadi.
 
-Railway Dockerfile orqali build qiladi, shuning uchun ffmpeg avtomatik o'rnatiladi.
+Bot web server emas, shuning uchun unga domen ham, PORT ham kerak emas.
 
 ## Cheklovlar
 
