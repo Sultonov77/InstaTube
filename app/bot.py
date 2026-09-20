@@ -346,6 +346,8 @@ async def main() -> None:
     # loglarga yozadi. SELFTEST_YOUTUBE=<video havolasi> bo'lganda ishlaydi.
     if selftest_url := config.SELFTEST_YOUTUBE:
         log.info("YouTube selftest boshlandi…")
+        for line in await downloader.diagnose(selftest_url):
+            log.info("POT-diag | %s", line)
         log.info("YouTube selftest: %s", await downloader.selftest(selftest_url))
 
     sweeper = asyncio.create_task(_sweep_pending())

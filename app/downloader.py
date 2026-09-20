@@ -199,6 +199,51 @@ def _attempts(source: str) -> list[list[str] | None]:
     return attempts
 
 
+class _CaptureLogger:
+    """yt-dlp'ning ichki xabarlarini yig'ib beradi (diagnostika uchun)."""
+
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+
+    def debug(self, msg: str) -> None:
+        self.lines.append(str(msg))
+
+    info = warning = error = debug
+
+
+def _diag_sync(url: str) -> list[str]:
+    """PO Token haqiqatan ishlatilyaptimi — yt-dlp'ning o'z loglaridan tekshiradi."""
+    workdir = Path(tempfile.mkdtemp(prefix="diag-", dir=config.WORK_DIR))
+    capture = _CaptureLogger()
+    try:
+        opts = _ydl_options(workdir, "YouTube", None)
+        opts.pop("postprocessors", None)
+        opts.update(
+            {
+                "skip_download": True,
+                "quiet": False,
+                "no_warnings": False,
+                "verbose": True,
+                "logger": capture,
+            }
+        )
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            try:
+                ydl.extract_info(url, download=False)
+            except Exception:  # noqa: BLE001
+                pass
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    keywords = ("po token", "potoken", "bgutil", "gvs", "pot provider", "pot framework")
+    return [line for line in capture.lines if any(k in line.lower() for k in keywords)][:25]
+
+
+async def diagnose(url: str) -> list[str]:
+    Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
+    return await asyncio.to_thread(_diag_sync, url)
+
+
 async def pot_ping() -> str:
     """PO Token serveri javob beryaptimi — loglar uchun qisqa holat."""
     if not config.POT_BASE_URL:
