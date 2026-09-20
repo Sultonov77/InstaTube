@@ -44,6 +44,11 @@ PROXY = _clean(os.getenv("PROXY", ""))
 POT_BASE_URL = _clean(os.getenv("POT_BASE_URL", ""))
 POT_ENABLED = bool(POT_BASE_URL)
 
+# YouTube bloki to'lqinli: bir urinishda hamma mijoz bloklanib, keyingisida
+# o'tib ketishi mumkin. Shuning uchun butun ro'yxat bir necha marta sinaladi.
+YT_RETRY_PASSES = int(os.getenv("YT_RETRY_PASSES", "3"))
+YT_RETRY_DELAY = float(os.getenv("YT_RETRY_DELAY", "3"))
+
 # Diagnostika: shu havola bilan ishga tushganda qaysi YouTube mijozi ishlayotgani
 # loglarga yoziladi. Bo'sh bo'lsa — tekshiruv o'tkazilmaydi.
 SELFTEST_YOUTUBE = _clean(os.getenv("SELFTEST_YOUTUBE", ""))

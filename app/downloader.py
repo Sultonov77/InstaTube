@@ -53,6 +53,9 @@ _BOT_WALL_MARKERS = (
 class DownloadError(RuntimeError):
     """Foydalanuvchiga ko'rsatiladigan xato."""
 
+    #: True bo'lsa — vaqtinchalik to'siq, qayta urinib ko'rish mantiqan to'g'ri.
+    retryable = False
+
 
 @dataclass
 class Downloaded:
@@ -307,7 +310,28 @@ async def selftest(url: str) -> str:
 
 
 async def download(url: str, source: str = "") -> Downloaded:
+    """Videoni yuklaydi. YouTube blokida bir necha mijoz va urinish sinaladi."""
     Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
+
+    passes = config.YT_RETRY_PASSES if source == "YouTube" else 1
+    last_error = ""
+
+    for attempt_pass in range(passes):
+        if attempt_pass:
+            # YouTube bloki to'lqinli — biroz kutib qayta urinamiz.
+            log.info("YouTube bloki: %d-urinish", attempt_pass + 1)
+            await asyncio.sleep(config.YT_RETRY_DELAY)
+        try:
+            return await _download_once(url, source)
+        except DownloadError as err:
+            last_error = str(err)
+            if not getattr(err, "retryable", False):
+                raise
+
+    raise DownloadError(last_error)
+
+
+async def _download_once(url: str, source: str) -> Downloaded:
     last_error = ""
 
     for clients in _attempts(source):
@@ -333,4 +357,7 @@ async def download(url: str, source: str = "") -> Downloaded:
                 log.info("Yuklandi (%s mijozi bilan): %s", ",".join(clients), item.title[:60])
             return item
 
-    raise DownloadError(_humanize(last_error, source))
+    # Hamma mijoz bloklandi. Blok to'lqinli bo'lgani uchun buni qayta urinsa bo'ladi.
+    error = DownloadError(_humanize(last_error, source))
+    error.retryable = _is_bot_wall(last_error)
+    raise error
