@@ -15,15 +15,32 @@ _MEMBER_STATUSES = {"creator", "administrator", "member"}
 # get_chat natijasi keshlanadi — har xabarda qayta so'ramaslik uchun.
 _cached_url: str | None = None
 
+# Kanal noto'g'ri sozlanganini bildiruvchi xatolar. Bularda foydalanuvchi aybdor
+# emas, shuning uchun uni bloklamaymiz.
+_CHANNEL_MISCONFIG = (
+    "chat not found",
+    "bot is not a member",
+    "not enough rights",
+    "chat_admin_required",
+    "bot was kicked",
+)
+
 
 async def is_subscribed(bot: Bot, user_id: int) -> bool:
-    """Foydalanuvchi kanalga a'zomi? Tekshirib bo'lmasa — o'tkazib yuboramiz."""
+    """Foydalanuvchi kanalga a'zomi?"""
+    if not config.CHANNEL_ID:
+        return True
     try:
         member = await bot.get_chat_member(config.CHANNEL_ID, user_id)
     except (TelegramBadRequest, TelegramForbiddenError) as err:
-        # Bot kanalga admin qilib qo'yilmagan bo'lsa, foydalanuvchini bloklamaymiz.
-        log.warning("Obunani tekshirib bo'lmadi (%s): %s", config.CHANNEL_ID, err)
-        return True
+        text = str(err).lower()
+        if any(marker in text for marker in _CHANNEL_MISCONFIG):
+            # Bot kanalga admin qilib qo'yilmagan — hammani bloklab qo'ymaymiz.
+            log.warning("Kanal sozlanmagan (%s): %s", config.CHANNEL_ID, err)
+            return True
+        # Boshqa xatolar (masalan noto'g'ri user_id) obunani tasdiqlamaydi.
+        log.warning("Obunani tekshirib bo'lmadi: %s", err)
+        return False
     return member.status in _MEMBER_STATUSES
 
 

@@ -260,6 +260,11 @@ async def main() -> None:
     if not config.CHANNEL_ID:
         log.warning("CHANNEL_ID berilmagan — majburiy obuna tekshiruvi o'chirilgan.")
 
+    if version := await video_note.ffmpeg_version():
+        log.info("ffmpeg topildi: %s", version)
+    else:
+        log.error("ffmpeg topilmadi — doira video yasash ishlamaydi!")
+
     sweeper = asyncio.create_task(_sweep_pending())
     try:
         await bot.delete_webhook(drop_pending_updates=True)

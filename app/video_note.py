@@ -23,6 +23,17 @@ async def _run(*args: str) -> tuple[int, bytes, bytes]:
     return proc.returncode or 0, stdout, stderr
 
 
+async def ffmpeg_version() -> str:
+    """ffmpeg mavjudligini tekshiradi. Topilmasa bo'sh satr qaytaradi."""
+    try:
+        code, out, _ = await _run("ffmpeg", "-version")
+    except FileNotFoundError:
+        return ""
+    if code != 0:
+        return ""
+    return out.decode(errors="ignore").splitlines()[0]
+
+
 async def probe_duration(path: Path) -> float:
     code, out, _ = await _run(
         "ffprobe", "-v", "quiet", "-print_format", "json",
