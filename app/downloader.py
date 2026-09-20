@@ -245,6 +245,19 @@ async def selftest(url: str) -> str:
             lines.append(f"{label}=XATO({str(err)[:60]})")
         else:
             lines.append(f"{label}=OK({count} format, {height}p)")
+
+    # Haqiqiy yuklashni ham sinaymiz — ffmpeg birlashtiruvi shu yerda tekshiriladi.
+    try:
+        item = await download(url, "YouTube")
+    except Exception as err:  # noqa: BLE001
+        lines.append(f"to'liq-yuklash=XATO({str(err)[:80]})")
+    else:
+        size_mb = item.path.stat().st_size / 1024 / 1024
+        lines.append(
+            f"to'liq-yuklash=OK({size_mb:.1f}MB, {item.width}x{item.height}, {item.duration}s)"
+        )
+        item.cleanup()
+
     return " | ".join(lines)
 
 
