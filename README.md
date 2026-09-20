@@ -27,13 +27,25 @@ doira videosiga (video note) aylantiradigan Telegram bot.
 
 ### YouTube "bot emasligingizni tasdiqlang" muammosi
 
-YouTube server (datacenter) IP'laridan kelgan so'rovlarni bloklaydi. Bot buni
-avtomatik aylanib o'tadi: bir nechta ichki YouTube player mijozini navbat bilan
-sinaydi (`tv_embedded` → `ios_music` → `android_music` → `android_vr` → `android`).
-Birinchi uchtasi 1080p+ sifat beradi, oxirgi ikkitasi zaxira (360p).
+YouTube server (datacenter) IP'laridan kelgan so'rovlarni bloklaydi va
+*"Sign in to confirm you're not a bot"* xatosini qaytaradi. Player mijozini
+almashtirish bunga **yordam bermaydi** — hammasi bir xil bloklanadi.
 
-Agar YouTube kelajakda bularni ham bloklasa, `YOUTUBE_COOKIES` yoki `PROXY`
-o'zgaruvchisini qo'shish muammoni hal qiladi.
+Yechim: **BgUtils PO Token serveri**. U alohida servis sifatida ishlaydi
+(tayyor Docker image — `brainicism/bgutil-ytdlp-pot-provider`), bot esa unga
+`POT_BASE_URL` orqali murojaat qiladi va yt-dlp har so'rovga token qo'shadi.
+
+Railway'da sozlash:
+
+1. Yangi servis → Docker image: `brainicism/bgutil-ytdlp-pot-provider:2.0.0`
+2. Servis nomi, masalan, `pot-provider` (u 4416-portda ishlaydi)
+3. Bot servisiga `POT_BASE_URL=http://pot-provider.railway.internal:4416`
+
+Bot ishga tushganda POT serverining holatini logga yozadi. `SELFTEST_YOUTUBE`
+o'zgaruvchisiga video havolasini qo'ysangiz, bot startda har bir mijozni va
+haqiqiy yuklashni sinab, natijani logga chiqaradi.
+
+Agar kelajakda bu ham yetmay qolsa — `YOUTUBE_COOKIES` yoki `PROXY` qo'shiladi.
 
 > ⚠️ Obuna tekshiruvi ishlashi uchun bot **kanalga administrator** qilib qo'shilgan bo'lishi kerak.
 > Aks holda bot tekshiruvni o'tkazib yuboradi (hamma foydalana oladi).
