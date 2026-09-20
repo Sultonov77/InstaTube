@@ -106,8 +106,13 @@ def _ydl_options(workdir: Path, source: str, clients: list[str] | None) -> dict:
             {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
         ],
     }
+    extractor_args: dict[str, dict] = {}
     if clients:
-        opts["extractor_args"] = {"youtube": {"player_client": clients}}
+        extractor_args["youtube"] = {"player_client": clients}
+    if config.POT_BASE_URL:
+        extractor_args["youtubepot-bgutilhttp"] = {"base_url": [config.POT_BASE_URL]}
+    if extractor_args:
+        opts["extractor_args"] = extractor_args
     if config.PROXY:
         opts["proxy"] = config.PROXY
     if cookies := _cookie_file(workdir, source):
@@ -192,6 +197,24 @@ def _attempts(source: str) -> list[list[str] | None]:
         attempts.append(None)
     attempts.extend(list(clients) for clients in _YT_CLIENT_SETS)
     return attempts
+
+
+async def pot_ping() -> str:
+    """PO Token serveri javob beryaptimi — loglar uchun qisqa holat."""
+    if not config.POT_BASE_URL:
+        return "sozlanmagan"
+
+    import aiohttp  # aiogram bilan birga keladi
+
+    url = config.POT_BASE_URL.rstrip("/") + "/ping"
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                body = (await response.text())[:150]
+        return f"OK ({response.status}) {body}"
+    except Exception as err:  # noqa: BLE001
+        return f"XATO ({type(err).__name__}: {str(err)[:100]})"
 
 
 def _probe_sync(url: str, source: str, clients: list[str] | None) -> tuple[int, int]:

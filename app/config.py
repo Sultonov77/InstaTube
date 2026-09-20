@@ -39,9 +39,10 @@ YOUTUBE_COOKIES = os.getenv("YOUTUBE_COOKIES", "")
 # bloklagan holatlar uchun.
 PROXY = _clean(os.getenv("PROXY", ""))
 
-# PO Token provayderi (BgUtils) mavjudmi. Docker image'da o'rnatilgan, shuning
-# uchun sukut bo'yicha yoqilgan. Lokalda yo'q bo'lsa POT_ENABLED=0 qiling.
-POT_ENABLED = _clean(os.getenv("POT_ENABLED", "1")).lower() not in ("0", "false", "no")
+# BgUtils PO Token serveri manzili (alohida servis sifatida ishlaydi).
+# Masalan: http://pot-provider.railway.internal:4416
+POT_BASE_URL = _clean(os.getenv("POT_BASE_URL", ""))
+POT_ENABLED = bool(POT_BASE_URL)
 
 # Diagnostika: shu havola bilan ishga tushganda qaysi YouTube mijozi ishlayotgani
 # loglarga yoziladi. Bo'sh bo'lsa — tekshiruv o'tkazilmaydi.

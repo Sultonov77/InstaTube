@@ -340,6 +340,8 @@ async def main() -> None:
     else:
         log.error("ffmpeg topilmadi — doira video yasash ishlamaydi!")
 
+    log.info("PO Token serveri: %s", await downloader.pot_ping())
+
     # Diagnostika: shu serverning IP'sidan qaysi YouTube mijozi ishlayotganini
     # loglarga yozadi. SELFTEST_YOUTUBE=<video havolasi> bo'lganda ishlaydi.
     if selftest_url := config.SELFTEST_YOUTUBE:
