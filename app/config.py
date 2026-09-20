@@ -9,13 +9,16 @@ def _clean(value: str) -> str:
 BOT_TOKEN = _clean(os.getenv("BOT_TOKEN", ""))
 
 # Majburiy obuna kanali: "@kanal" yoki "-100..." ko'rinishida.
-CHANNEL_ID = _clean(os.getenv("CHANNEL_ID", "@sultonov_samandar_ai"))
+CHANNEL_ID = _clean(os.getenv("CHANNEL_ID", ""))
 
-# Kanalning odamlarga ko'rsatiladigan nomi va havolasi.
-CHANNEL_TITLE = _clean(os.getenv("CHANNEL_TITLE", "Sultonov Samandar AI"))
-CHANNEL_URL = _clean(
-    os.getenv("CHANNEL_URL", "")
-) or f"https://t.me/{CHANNEL_ID.lstrip('@')}"
+# Kanalning odamlarga ko'rsatiladigan nomi.
+CHANNEL_TITLE = _clean(os.getenv("CHANNEL_TITLE", ""))
+
+# Kanal havolasi. Ko'rsatilmasa: @username dan yasaladi, yoki bot kanalning
+# o'zidan (invite link) olib keladi — qarang: app/subscription.py.
+CHANNEL_URL = _clean(os.getenv("CHANNEL_URL", ""))
+if not CHANNEL_URL and CHANNEL_ID.startswith("@"):
+    CHANNEL_URL = f"https://t.me/{CHANNEL_ID.lstrip('@')}"
 
 # Telegram Bot API orqali yuborish chegarasi 50 MB.
 MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "48"))

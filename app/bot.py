@@ -78,7 +78,10 @@ async def _guard(bot: Bot, user_id: int, answer) -> bool:
     """Obuna bo'lmagan foydalanuvchiga taklif ko'rsatadi."""
     if await subscription.is_subscribed(bot, user_id):
         return True
-    await answer(subscription.SUBSCRIBE_TEXT, reply_markup=subscription.subscribe_keyboard())
+    await answer(
+        await subscription.subscribe_text(bot),
+        reply_markup=await subscription.subscribe_keyboard(bot),
+    )
     return False
 
 
@@ -253,7 +256,9 @@ async def main() -> None:
     dp.include_router(router)
 
     me = await bot.me()
-    log.info("Bot ishga tushdi: @%s (kanal: %s)", me.username, config.CHANNEL_ID)
+    log.info("Bot ishga tushdi: @%s (kanal: %s)", me.username, config.CHANNEL_ID or "yo'q")
+    if not config.CHANNEL_ID:
+        log.warning("CHANNEL_ID berilmagan — majburiy obuna tekshiruvi o'chirilgan.")
 
     sweeper = asyncio.create_task(_sweep_pending())
     try:
