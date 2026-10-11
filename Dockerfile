@@ -16,10 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# YouTube himoyasi tez-tez o'zgaradi, shuning uchun har build'da yt-dlp'ning eng
-# so'nggi (nightly) versiyasi o'rnatiladi. bgutil-ytdlp-pot-provider — PO Token
-# plagini; tokenni alohida ishlaydigan POT serveridan oladi (POT_BASE_URL).
-RUN pip install --no-cache-dir --upgrade --pre "yt-dlp[default]" \
-    && pip install --no-cache-dir --upgrade bgutil-ytdlp-pot-provider
+# Instagram tez-tez o'zgaradi, shuning uchun har build'da yt-dlp'ning eng
+# so'nggi (nightly) versiyasi o'rnatiladi.
+RUN pip install --no-cache-dir --upgrade --pre "yt-dlp[default]"
 
 CMD ["python", "main.py"]
