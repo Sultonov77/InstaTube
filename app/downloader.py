@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yt_dlp
 
-from app import config
+from app import config, video_note
 
 log = logging.getLogger(__name__)
 
@@ -92,11 +92,12 @@ def _cookie_file(workdir: Path, source: str) -> str | None:
 def _ydl_options(workdir: Path, source: str, clients: list[str] | None) -> dict:
     opts = {
         "outtmpl": str(workdir / "%(id)s.%(ext)s"),
-        "format": (
-            f"best[ext=mp4][filesize<{config.MAX_FILE_MB}M]"
-            f"/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]"
-            f"/best[height<=1080]/best"
-        ),
+        # Telegram faqat H.264 (avc1) videoni hamma qurilmada o'ynatadi. AV1/VP9
+        # kelsa, video bitta qotgan rasm bo'lib ko'rinadi — shuning uchun H.264
+        # birinchi o'ringa qo'yiladi. Baribir boshqa kodek kelsa, bot uni
+        # yuborishdan oldin H.264 ga o'giradi (video_note.ensure_h264).
+        "format": "bv*[height<=1080]+ba/b[height<=1080]/b",
+        "format_sort": ["vcodec:h264", "res:1080", "acodec:aac", "ext:mp4:m4a"],
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,
@@ -322,13 +323,27 @@ async def download(url: str, source: str = "") -> Downloaded:
             log.info("YouTube bloki: %d-urinish", attempt_pass + 1)
             await asyncio.sleep(config.YT_RETRY_DELAY)
         try:
-            return await _download_once(url, source)
+            item = await _download_once(url, source)
         except DownloadError as err:
             last_error = str(err)
             if not getattr(err, "retryable", False):
                 raise
+        else:
+            return await _make_playable(item)
 
     raise DownloadError(last_error)
+
+
+async def _make_playable(item: Downloaded) -> Downloaded:
+    """Telegram o'ynata oladigan H.264 videoga keltiradi."""
+    item.path = await video_note.ensure_h264(item.path)
+    if item.path.stat().st_size > config.MAX_FILE_BYTES:
+        item.cleanup()
+        raise DownloadError(
+            f"Video hajmi {config.MAX_FILE_MB} MB dan katta — Telegram bunday "
+            "faylni yuborishga ruxsat bermaydi."
+        )
+    return item
 
 
 async def _download_once(url: str, source: str) -> Downloaded:
