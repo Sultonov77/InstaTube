@@ -47,6 +47,47 @@ async def probe_duration(path: Path) -> float:
         return 0.0
 
 
+async def video_codec(path: Path) -> str:
+    code, out, _ = await _run(
+        "ffprobe", "-v", "quiet", "-print_format", "json",
+        "-select_streams", "v:0", "-show_streams", str(path),
+    )
+    if code != 0:
+        return ""
+    try:
+        return json.loads(out)["streams"][0]["codec_name"]
+    except (KeyError, IndexError, ValueError, json.JSONDecodeError):
+        return ""
+
+
+async def ensure_h264(path: Path) -> Path:
+    """Video H.264 bo'lmasa (AV1, VP9...), Telegram o'ynatishi uchun qayta kodlaydi.
+
+    Aks holda Telegram videoni bitta qotgan rasm qilib ko'rsatadi.
+    """
+    codec = await video_codec(path)
+    if codec == "h264":
+        return path
+
+    log.info("Video kodeki %s — H.264 ga o'girilmoqda: %s", codec or "noma'lum", path.name)
+    dst = path.with_name(f"{path.stem}-h264.mp4")
+    code, _, stderr = await _run(
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(path),
+        "-map", "0:v:0", "-map", "0:a:0?",
+        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart",
+        str(dst),
+    )
+    if code != 0 or not dst.exists():
+        log.error("H.264 ga o'girib bo'lmadi: %s", stderr.decode(errors="ignore")[:500])
+        return path
+    path.unlink(missing_ok=True)
+    return dst
+
+
 async def to_video_note(src: Path, dst: Path) -> int:
     """Videoni kvadrat qilib kesadi va qayta kodlaydi. Davomiyligini qaytaradi."""
     size = config.NOTE_SIZE
