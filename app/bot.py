@@ -192,7 +192,7 @@ async def handle_link(message: Message, bot: Bot) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.UPLOAD_VIDEO)
 
     try:
-        item = await downloader.download(url, source)
+        item = await downloader.download(url)
     except downloader.DownloadError as err:
         await status.edit_text(f"❌ <b>Yuklab bo'lmadi</b>\n\n{err}")
         return
@@ -304,16 +304,6 @@ async def handle_video(message: Message, bot: Bot) -> None:
         shutil.rmtree(workdir, ignore_errors=True)
 
 
-@router.message(F.text.func(lambda t: bool(t) and downloader.is_youtube(t)))
-async def handle_youtube(message: Message, bot: Bot) -> None:
-    if not await _guard(bot, message.from_user.id, message.answer):
-        return
-    await message.answer(
-        "⛔️ <b>YouTube'dan yuklash hozircha o'chirilgan</b>\n\n"
-        "Hozir faqat <b>Instagram</b> havolalarini yuklayman — post, Reels, IGTV."
-    )
-
-
 @router.message(F.text)
 async def handle_other_text(message: Message, bot: Bot) -> None:
     if not await _guard(bot, message.from_user.id, message.answer):
@@ -346,16 +336,6 @@ async def main() -> None:
         log.info("ffmpeg topildi: %s", version)
     else:
         log.error("ffmpeg topilmadi — doira video yasash ishlamaydi!")
-
-    log.info("PO Token serveri: %s", await downloader.pot_ping())
-
-    # Diagnostika: shu serverning IP'sidan qaysi YouTube mijozi ishlayotganini
-    # loglarga yozadi. SELFTEST_YOUTUBE=<video havolasi> bo'lganda ishlaydi.
-    if selftest_url := config.SELFTEST_YOUTUBE:
-        log.info("YouTube selftest boshlandi…")
-        for line in await downloader.diagnose(selftest_url):
-            log.info("POT-diag | %s", line)
-        log.info("YouTube selftest: %s", await downloader.selftest(selftest_url))
 
     sweeper = asyncio.create_task(_sweep_pending())
     try:
