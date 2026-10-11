@@ -1,11 +1,11 @@
 # InstaTube
 
-YouTube va Instagram'dan video yuklab beradigan hamda to'rtburchak videoni Telegram'ning
+Instagram'dan video yuklab beradigan hamda to'rtburchak videoni Telegram'ning
 doira videosiga (video note) aylantiradigan Telegram bot.
 
 ## Imkoniyatlar
 
-- 🔗 **YouTube** (oddiy video, Shorts) va **Instagram** (post, reel, IGTV) havolalaridan video yuklash
+- 🔗 **Instagram** (post, reel, IGTV) havolalaridan video yuklash
 - 🔵 **Doira video**: istalgan to'rtburchak videoni markazidan kvadrat kesib, video note qilib yuborish
 - 📢 **Majburiy obuna**: botdan foydalanish uchun belgilangan kanalga a'zolik tekshiriladi
 - 🎛 Yuklangan videoning tagidagi tugma orqali darhol doira video yasash
@@ -22,30 +22,7 @@ doira videosiga (video note) aylantiradigan Telegram bot.
 | `NOTE_MAX_SECONDS` | yo'q | Doira video uzunligi chegarasi, sukut bo'yicha 60 |
 | `NOTE_SIZE` | yo'q | Doira video o'lchami (piksel), sukut bo'yicha 480 |
 | `INSTAGRAM_COOKIES` | yo'q | Yopiq postlar uchun Netscape formatdagi cookies |
-| `YOUTUBE_COOKIES` | yo'q | YouTube bloklab qo'ysa — Netscape formatdagi cookies |
-| `PROXY` | yo'q | `http://user:pass@host:port` — YouTube IP blokini aylanib o'tish uchun |
-
-### YouTube "bot emasligingizni tasdiqlang" muammosi
-
-YouTube server (datacenter) IP'laridan kelgan so'rovlarni bloklaydi va
-*"Sign in to confirm you're not a bot"* xatosini qaytaradi. Player mijozini
-almashtirish bunga **yordam bermaydi** — hammasi bir xil bloklanadi.
-
-Yechim: **BgUtils PO Token serveri**. U alohida servis sifatida ishlaydi
-(tayyor Docker image — `brainicism/bgutil-ytdlp-pot-provider`), bot esa unga
-`POT_BASE_URL` orqali murojaat qiladi va yt-dlp har so'rovga token qo'shadi.
-
-Railway'da sozlash:
-
-1. Yangi servis → Docker image: `brainicism/bgutil-ytdlp-pot-provider:2.0.0`
-2. Servis nomi, masalan, `pot-provider` (u 4416-portda ishlaydi)
-3. Bot servisiga `POT_BASE_URL=http://pot-provider.railway.internal:4416`
-
-Bot ishga tushganda POT serverining holatini logga yozadi. `SELFTEST_YOUTUBE`
-o'zgaruvchisiga video havolasini qo'ysangiz, bot startda har bir mijozni va
-haqiqiy yuklashni sinab, natijani logga chiqaradi.
-
-Agar kelajakda bu ham yetmay qolsa — `YOUTUBE_COOKIES` yoki `PROXY` qo'shiladi.
+| `PROXY` | yo'q | `http://user:pass@host:port` — Instagram server IP'ini cheklab qo'ysa |
 
 > ⚠️ Obuna tekshiruvi ishlashi uchun bot **kanalga administrator** qilib qo'shilgan bo'lishi kerak.
 > Aks holda bot tekshiruvni o'tkazib yuboradi (hamma foydalana oladi).
