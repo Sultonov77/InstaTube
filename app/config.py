@@ -31,27 +31,9 @@ NOTE_SIZE = int(os.getenv("NOTE_SIZE", "480"))
 # Instagram yopiq postlari uchun ixtiyoriy cookies (Netscape formatdagi matn).
 INSTAGRAM_COOKIES = os.getenv("INSTAGRAM_COOKIES", "")
 
-# YouTube "bot emasligingizni tasdiqlang" to'sig'ini kafolatli aylanib o'tish uchun
-# ixtiyoriy cookies (Netscape formatdagi matn).
-YOUTUBE_COOKIES = os.getenv("YOUTUBE_COOKIES", "")
-
-# Ixtiyoriy proxy (masalan "http://user:pass@host:port") — YouTube server IP'larini
-# bloklagan holatlar uchun.
+# Ixtiyoriy proxy (masalan "http://user:pass@host:port") — Instagram server
+# IP'ini cheklab qo'ysa.
 PROXY = _clean(os.getenv("PROXY", ""))
-
-# BgUtils PO Token serveri manzili (alohida servis sifatida ishlaydi).
-# Masalan: http://pot-provider.railway.internal:4416
-POT_BASE_URL = _clean(os.getenv("POT_BASE_URL", ""))
-POT_ENABLED = bool(POT_BASE_URL)
-
-# YouTube bloki to'lqinli: bir urinishda hamma mijoz bloklanib, keyingisida
-# o'tib ketishi mumkin. Shuning uchun butun ro'yxat bir necha marta sinaladi.
-YT_RETRY_PASSES = int(os.getenv("YT_RETRY_PASSES", "3"))
-YT_RETRY_DELAY = float(os.getenv("YT_RETRY_DELAY", "3"))
-
-# Diagnostika: shu havola bilan ishga tushganda qaysi YouTube mijozi ishlayotgani
-# loglarga yoziladi. Bo'sh bo'lsa — tekshiruv o'tkazilmaydi.
-SELFTEST_YOUTUBE = _clean(os.getenv("SELFTEST_YOUTUBE", ""))
 
 # Yuklangan fayllar vaqtinchalik saqlanadigan joy.
 WORK_DIR = _clean(os.getenv("WORK_DIR", "/tmp/instatube"))
