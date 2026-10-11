@@ -72,12 +72,17 @@ class Downloaded:
 
 
 def find_link(text: str) -> tuple[str, str] | None:
-    """Matndan qo'llab-quvvatlanadigan havolani topadi -> (url, manba)."""
-    if match := YOUTUBE_RE.search(text):
-        return match.group(0), "YouTube"
+    """Matndan qo'llab-quvvatlanadigan havolani topadi -> (url, manba).
+
+    Hozircha faqat Instagram: YouTube Railway server IP'sini bloklagan.
+    """
     if match := INSTAGRAM_RE.search(text):
         return match.group(0), "Instagram"
     return None
+
+
+def is_youtube(text: str) -> bool:
+    return bool(YOUTUBE_RE.search(text))
 
 
 def _cookie_file(workdir: Path, source: str) -> str | None:
