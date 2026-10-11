@@ -1,4 +1,4 @@
-"""InstaTube — YouTube/Instagram video yuklovchi va doira video yasovchi bot."""
+"""InstaTube — Instagram video yuklovchi va doira video yasovchi bot."""
 import asyncio
 import contextlib
 import logging
@@ -39,7 +39,7 @@ def welcome(name: str) -> str:
         f"<i>Video yuklovchi va doira video ustasi</i>\n\n"
         f"Salom, <b>{name}</b>! Mana nima qila olaman:\n\n"
         f"📥  <b>Video yuklash</b>\n"
-        f"      <i>YouTube yoki Instagram havolasini tashlang</i>\n\n"
+        f"      <i>Instagram havolasini tashlang</i>\n\n"
         f"🔵  <b>Doira video</b>\n"
         f"      <i>Oddiy videoni tashlang — video note qilib qaytaraman</i>\n\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -49,10 +49,7 @@ def welcome(name: str) -> str:
 
 HOW_DOWNLOAD = (
     "📥 <b>Video yuklash</b>\n\n"
-    "Menga quyidagilardan birining havolasini tashlang:\n\n"
-    "▸ <b>YouTube</b> — oddiy video, Shorts, jonli efir yozuvi\n"
-    "▸ <b>Instagram</b> — post, Reels, IGTV\n\n"
-    "<code>https://youtu.be/...</code>\n"
+    "Menga <b>Instagram</b> havolasini tashlang — post, Reels, IGTV:\n\n"
     "<code>https://instagram.com/reel/...</code>\n\n"
     f"<i>Cheklov: {config.MAX_FILE_MB} MB gacha. Yopiq (private) postlar yuklanmaydi.</i>"
 )
@@ -69,7 +66,7 @@ HOW_NOTE = (
 
 HELP = (
     "ℹ️ <b>Yordam</b>\n\n"
-    "📥 <b>Yuklash</b> — YouTube yoki Instagram havolasini yuboring\n"
+    "📥 <b>Yuklash</b> — Instagram havolasini yuboring\n"
     "🔵 <b>Doira video</b> — video yoki GIF yuboring\n\n"
     "<b>Komandalar</b>\n"
     "/start — boshlash\n"
@@ -307,13 +304,23 @@ async def handle_video(message: Message, bot: Bot) -> None:
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+@router.message(F.text.func(lambda t: bool(t) and downloader.is_youtube(t)))
+async def handle_youtube(message: Message, bot: Bot) -> None:
+    if not await _guard(bot, message.from_user.id, message.answer):
+        return
+    await message.answer(
+        "⛔️ <b>YouTube'dan yuklash hozircha o'chirilgan</b>\n\n"
+        "Hozir faqat <b>Instagram</b> havolalarini yuklayman — post, Reels, IGTV."
+    )
+
+
 @router.message(F.text)
 async def handle_other_text(message: Message, bot: Bot) -> None:
     if not await _guard(bot, message.from_user.id, message.answer):
         return
     await message.answer(
         "🤔 <b>Bu havolani tanimadim</b>\n\n"
-        "📥 YouTube yoki Instagram havolasini yuboring\n"
+        "📥 Instagram havolasini yuboring\n"
         "🔵 Yoki doira videoga aylantirish uchun video tashlang",
         reply_markup=main_keyboard(await subscription.channel_url(bot)),
     )
