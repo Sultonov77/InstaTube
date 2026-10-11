@@ -1,4 +1,4 @@
-"""YouTube va Instagram'dan video yuklab olish (yt-dlp orqali)."""
+"""Instagram'dan video yuklab olish (yt-dlp orqali)."""
 import asyncio
 import logging
 import re
@@ -14,47 +14,14 @@ from app import config, video_note
 
 log = logging.getLogger(__name__)
 
-YOUTUBE_RE = re.compile(
-    r"https?://(?:www\.|m\.|music\.)?(?:youtube\.com/(?:watch|shorts|live|embed)\S*"
-    r"|youtu\.be/\S+)",
-    re.IGNORECASE,
-)
 INSTAGRAM_RE = re.compile(
     r"https?://(?:www\.)?instagram\.com/(?:p|reel|reels|tv|share)/\S+",
     re.IGNORECASE,
 )
 
-# YouTube server IP'laridan kelgan so'rovlarni "bot" deb hisoblab, oddiy web
-# mijozni bloklaydi. Bu mijozlar PO Token talab qilmaydi, shuning uchun ularni
-# navbat bilan sinab ko'ramiz.
-# Tartib muhim: birinchi uchtasi 1080p+ beradi, android_* zaxira sifatida
-# 360p bo'lsa ham ishlaydi. (2026-09-20 da haqiqiy videolarda tekshirilgan.)
-_YT_CLIENT_SETS: tuple[list[str], ...] = (
-    ["tv_embedded"],
-    ["ios_music"],
-    ["android_music"],
-    ["android_vr"],
-    ["android"],
-)
-
-# Shu belgilar uchrasa — mijoz bloklangan/format bermagan, keyingisini sinaymiz.
-_BOT_WALL_MARKERS = (
-    "not a bot",
-    "sign in to confirm",
-    "please sign in",
-    "po token",
-    "page needs to be reloaded",
-    "failed to extract any player response",
-    "unable to extract",
-    "requested format is not available",
-)
-
 
 class DownloadError(RuntimeError):
     """Foydalanuvchiga ko'rsatiladigan xato."""
-
-    #: True bo'lsa — vaqtinchalik to'siq, qayta urinib ko'rish mantiqan to'g'ri.
-    retryable = False
 
 
 @dataclass
@@ -72,21 +39,14 @@ class Downloaded:
 
 
 def find_link(text: str) -> tuple[str, str] | None:
-    """Matndan qo'llab-quvvatlanadigan havolani topadi -> (url, manba).
-
-    Hozircha faqat Instagram: YouTube Railway server IP'sini bloklagan.
-    """
+    """Matndan Instagram havolasini topadi -> (url, manba)."""
     if match := INSTAGRAM_RE.search(text):
         return match.group(0), "Instagram"
     return None
 
 
-def is_youtube(text: str) -> bool:
-    return bool(YOUTUBE_RE.search(text))
-
-
-def _cookie_file(workdir: Path, source: str) -> str | None:
-    raw = config.YOUTUBE_COOKIES if source == "YouTube" else config.INSTAGRAM_COOKIES
+def _cookie_file(workdir: Path) -> str | None:
+    raw = config.INSTAGRAM_COOKIES
     if not raw.strip():
         return None
     path = workdir / "cookies.txt"
@@ -94,7 +54,7 @@ def _cookie_file(workdir: Path, source: str) -> str | None:
     return str(path)
 
 
-def _ydl_options(workdir: Path, source: str, clients: list[str] | None) -> dict:
+def _ydl_options(workdir: Path) -> dict:
     opts = {
         "outtmpl": str(workdir / "%(id)s.%(ext)s"),
         # Telegram faqat H.264 (avc1) videoni hamma qurilmada o'ynatadi. AV1/VP9
@@ -107,6 +67,7 @@ def _ydl_options(workdir: Path, source: str, clients: list[str] | None) -> dict:
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
         "nocheckcertificate": True,
         "retries": 3,
         "socket_timeout": 30,
@@ -115,24 +76,17 @@ def _ydl_options(workdir: Path, source: str, clients: list[str] | None) -> dict:
             {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
         ],
     }
-    extractor_args: dict[str, dict] = {}
-    if clients:
-        extractor_args["youtube"] = {"player_client": clients}
-    if config.POT_BASE_URL:
-        extractor_args["youtubepot-bgutilhttp"] = {"base_url": [config.POT_BASE_URL]}
-    if extractor_args:
-        opts["extractor_args"] = extractor_args
     if config.PROXY:
         opts["proxy"] = config.PROXY
-    if cookies := _cookie_file(workdir, source):
+    if cookies := _cookie_file(workdir):
         opts["cookiefile"] = cookies
     return opts
 
 
-def _download_sync(url: str, source: str, clients: list[str] | None) -> Downloaded:
+def _download_sync(url: str) -> Downloaded:
     workdir = Path(tempfile.mkdtemp(prefix=f"dl-{uuid.uuid4().hex[:8]}-", dir=config.WORK_DIR))
     try:
-        with yt_dlp.YoutubeDL(_ydl_options(workdir, source, clients)) as ydl:
+        with yt_dlp.YoutubeDL(_ydl_options(workdir)) as ydl:
             info = ydl.extract_info(url, download=True)
         if info.get("entries"):
             info = info["entries"][0]
@@ -145,20 +99,13 @@ def _download_sync(url: str, source: str, clients: list[str] | None) -> Download
         if not files:
             raise DownloadError("Video yuklab olinmadi.")
 
-        video = files[0]
-        if video.stat().st_size > config.MAX_FILE_BYTES:
-            raise DownloadError(
-                f"Video hajmi {config.MAX_FILE_MB} MB dan katta — Telegram bunday "
-                "faylni yuborishga ruxsat bermaydi."
-            )
-
         return Downloaded(
-            path=video,
+            path=files[0],
             title=(info.get("title") or "Video")[:200],
             duration=int(info.get("duration") or 0),
             width=int(info.get("width") or 0),
             height=int(info.get("height") or 0),
-            source=info.get("extractor_key") or source,
+            source=info.get("extractor_key") or "Instagram",
             workdir=workdir,
         )
     except Exception:
@@ -166,181 +113,36 @@ def _download_sync(url: str, source: str, clients: list[str] | None) -> Download
         raise
 
 
-def _is_bot_wall(raw: str) -> bool:
+def _humanize(raw: str) -> str:
     low = raw.lower()
-    return any(marker in low for marker in _BOT_WALL_MARKERS)
-
-
-def _humanize(raw: str, source: str) -> str:
-    low = raw.lower()
-    if _is_bot_wall(low):
-        if source == "YouTube":
-            return (
-                "YouTube hozir bu serverdan yuklashga ruxsat bermayapti "
-                "(«bot emasligingizni tasdiqlang» to'sig'i). Biroz kutib qayta "
-                "urinib ko'ring yoki boshqa video tashlang."
-            )
-        return "Manba hozir yuklashga ruxsat bermayapti. Birozdan so'ng urinib ko'ring."
-    if "private" in low or "login required" in low or "log in" in low:
+    if "private" in low or "login required" in low or "log in" in low or "empty media" in low:
         return "Bu post yopiq (private) yoki login talab qiladi — uni yuklab bo'lmaydi."
+    if "no video" in low or "there is no video" in low:
+        return "Bu postda video yo'q (faqat rasm)."
     if "unavailable" in low or "not exist" in low or "404" in low or "removed" in low:
         return "Video topilmadi yoki o'chirilgan."
-    if "age" in low and "restrict" in low:
-        return "Video yosh chekloviga ega, yuklab bo'lmaydi."
-    if "copyright" in low or "blocked" in low:
-        return "Video mualliflik huquqi sababli bloklangan."
-    if "live" in low and "not started" in low:
-        return "Bu jonli efir hali boshlanmagan."
+    if "rate" in low and "limit" in low:
+        return "Instagram hozir so'rovlarni cheklayapti. Birozdan so'ng urinib ko'ring."
     return "Videoni yuklab bo'lmadi. Havolani tekshirib qayta urinib ko'ring."
 
 
-def _attempts(source: str) -> list[list[str] | None]:
-    """Qaysi player mijozlari bilan urinib ko'rish kerakligini qaytaradi."""
-    if source != "YouTube":
-        return [None]
-
-    attempts: list[list[str] | None] = []
-    if config.POT_ENABLED or config.YOUTUBE_COOKIES.strip():
-        # PO Token yoki cookies bo'lsa yt-dlp'ning odatdagi (web) mijozi ishlaydi
-        # va eng yaxshi sifatni beradi.
-        attempts.append(None)
-    attempts.extend(list(clients) for clients in _YT_CLIENT_SETS)
-    return attempts
-
-
-class _CaptureLogger:
-    """yt-dlp'ning ichki xabarlarini yig'ib beradi (diagnostika uchun)."""
-
-    def __init__(self) -> None:
-        self.lines: list[str] = []
-
-    def debug(self, msg: str) -> None:
-        self.lines.append(str(msg))
-
-    info = warning = error = debug
-
-
-def _diag_sync(url: str) -> list[str]:
-    """PO Token haqiqatan ishlatilyaptimi — yt-dlp'ning o'z loglaridan tekshiradi."""
-    workdir = Path(tempfile.mkdtemp(prefix="diag-", dir=config.WORK_DIR))
-    capture = _CaptureLogger()
-    try:
-        opts = _ydl_options(workdir, "YouTube", None)
-        opts.pop("postprocessors", None)
-        opts.update(
-            {
-                "skip_download": True,
-                "quiet": False,
-                "no_warnings": False,
-                "verbose": True,
-                "logger": capture,
-            }
-        )
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            try:
-                ydl.extract_info(url, download=False)
-            except Exception:  # noqa: BLE001
-                pass
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-
-    keywords = ("po token", "potoken", "bgutil", "gvs", "pot provider", "pot framework")
-    return [line for line in capture.lines if any(k in line.lower() for k in keywords)][:25]
-
-
-async def diagnose(url: str) -> list[str]:
+async def download(url: str) -> Downloaded:
+    """Videoni yuklaydi va Telegram o'ynata oladigan holatga keltiradi."""
     Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
-    return await asyncio.to_thread(_diag_sync, url)
 
-
-async def pot_ping() -> str:
-    """PO Token serveri javob beryaptimi — loglar uchun qisqa holat."""
-    if not config.POT_BASE_URL:
-        return "sozlanmagan"
-
-    import aiohttp  # aiogram bilan birga keladi
-
-    url = config.POT_BASE_URL.rstrip("/") + "/ping"
     try:
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as response:
-                body = (await response.text())[:150]
-        return f"OK ({response.status}) {body}"
+        item = await asyncio.to_thread(_download_sync, url)
+    except DownloadError:
+        raise
+    except yt_dlp.utils.DownloadError as err:
+        log.warning("yt-dlp xatosi: %s", str(err)[:300])
+        raise DownloadError(_humanize(str(err))) from err
     except Exception as err:  # noqa: BLE001
-        return f"XATO ({type(err).__name__}: {str(err)[:100]})"
+        log.exception("Yuklashda kutilmagan xato")
+        raise DownloadError(
+            "Videoni yuklab bo'lmadi. Havolani tekshirib qayta urinib ko'ring."
+        ) from err
 
-
-def _probe_sync(url: str, source: str, clients: list[str] | None) -> tuple[int, int]:
-    """Yuklamasdan formatlarni tekshiradi -> (formatlar soni, maksimal balandlik)."""
-    workdir = Path(tempfile.mkdtemp(prefix="probe-", dir=config.WORK_DIR))
-    try:
-        opts = _ydl_options(workdir, source, clients) | {"skip_download": True}
-        opts.pop("postprocessors", None)
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-        videos = [
-            f for f in (info.get("formats") or []) if f.get("vcodec") not in (None, "none")
-        ]
-        return len(videos), max((f.get("height") or 0) for f in videos) if videos else 0
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-
-
-async def selftest(url: str) -> str:
-    """Server IP'sidan qaysi YouTube mijozi ishlayotganini aniqlaydi (loglar uchun)."""
-    Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
-    lines = []
-    for clients in _attempts("YouTube"):
-        label = ",".join(clients) if clients else "default"
-        try:
-            count, height = await asyncio.to_thread(_probe_sync, url, "YouTube", clients)
-        except Exception as err:  # noqa: BLE001
-            lines.append(f"{label}=XATO({str(err)[:60]})")
-        else:
-            lines.append(f"{label}=OK({count} format, {height}p)")
-
-    # Haqiqiy yuklashni ham sinaymiz — ffmpeg birlashtiruvi shu yerda tekshiriladi.
-    try:
-        item = await download(url, "YouTube")
-    except Exception as err:  # noqa: BLE001
-        lines.append(f"to'liq-yuklash=XATO({str(err)[:80]})")
-    else:
-        size_mb = item.path.stat().st_size / 1024 / 1024
-        lines.append(
-            f"to'liq-yuklash=OK({size_mb:.1f}MB, {item.width}x{item.height}, {item.duration}s)"
-        )
-        item.cleanup()
-
-    return " | ".join(lines)
-
-
-async def download(url: str, source: str = "") -> Downloaded:
-    """Videoni yuklaydi. YouTube blokida bir necha mijoz va urinish sinaladi."""
-    Path(config.WORK_DIR).mkdir(parents=True, exist_ok=True)
-
-    passes = config.YT_RETRY_PASSES if source == "YouTube" else 1
-    last_error = ""
-
-    for attempt_pass in range(passes):
-        if attempt_pass:
-            # YouTube bloki to'lqinli — biroz kutib qayta urinamiz.
-            log.info("YouTube bloki: %d-urinish", attempt_pass + 1)
-            await asyncio.sleep(config.YT_RETRY_DELAY)
-        try:
-            item = await _download_once(url, source)
-        except DownloadError as err:
-            last_error = str(err)
-            if not getattr(err, "retryable", False):
-                raise
-        else:
-            return await _make_playable(item)
-
-    raise DownloadError(last_error)
-
-
-async def _make_playable(item: Downloaded) -> Downloaded:
-    """Telegram o'ynata oladigan H.264 videoga keltiradi."""
     item.path = await video_note.ensure_h264(item.path)
     if item.path.stat().st_size > config.MAX_FILE_BYTES:
         item.cleanup()
@@ -349,35 +151,3 @@ async def _make_playable(item: Downloaded) -> Downloaded:
             "faylni yuborishga ruxsat bermaydi."
         )
     return item
-
-
-async def _download_once(url: str, source: str) -> Downloaded:
-    last_error = ""
-
-    for clients in _attempts(source):
-        try:
-            item = await asyncio.to_thread(_download_sync, url, source, clients)
-        except DownloadError:
-            raise
-        except yt_dlp.utils.DownloadError as err:
-            last_error = str(err)
-            if _is_bot_wall(last_error):
-                # Bu mijoz bloklandi — keyingisini sinaymiz.
-                log.warning("Mijoz ishlamadi (%s): %s", clients or "default", last_error[:200])
-                continue
-            log.warning("yt-dlp xatosi: %s", last_error[:300])
-            raise DownloadError(_humanize(last_error, source)) from err
-        except Exception as err:  # noqa: BLE001
-            log.exception("Yuklashda kutilmagan xato")
-            raise DownloadError(
-                "Videoni yuklab bo'lmadi. Havolani tekshirib qayta urinib ko'ring."
-            ) from err
-        else:
-            if clients:
-                log.info("Yuklandi (%s mijozi bilan): %s", ",".join(clients), item.title[:60])
-            return item
-
-    # Hamma mijoz bloklandi. Blok to'lqinli bo'lgani uchun buni qayta urinsa bo'ladi.
-    error = DownloadError(_humanize(last_error, source))
-    error.retryable = _is_bot_wall(last_error)
-    raise error
